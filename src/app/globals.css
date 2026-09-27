@@ -1507,7 +1507,43 @@ input:focus-visible {
   .editor-layout { display: block; }
   .preview-panel { display: block; }
   .document-paper { width: 100%; max-width: none; min-height: 0; margin: 0; box-shadow: none; }
-  .doc-banner { min-height: 28mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .doc-banner { min-height: 34mm; padding: 6mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .doc-content { padding-right: 6mm; padding-left: 6mm; }
+  .doc-logo,
+  .doc-logo img { width: 24mm; height: 24mm; flex-basis: 24mm; }
+  .doc-issuer { gap: 1mm; font-size: 10pt; }
+  .doc-issuer strong { max-width: 78mm; font-size: 15pt; }
+  .doc-title-wrap h2 { margin-bottom: 2mm; font-size: 22pt; }
+  .doc-meta { margin-top: 1mm; font-size: 11pt; }
+  .doc-client { padding-top: 4mm; padding-bottom: 4mm; }
+  .doc-client h3,
+  .doc-footer h3,
+  .doc-service-terms h3,
+  .doc-payment-block h3,
+  .doc-observations h3 { margin-bottom: 2.5mm; font-size: 12pt; }
+  .doc-client-grid { gap: 2.5mm 4mm; }
+  .doc-client-grid > div { gap: 0.5mm; font-size: 10pt; }
+  .doc-client dt,
+  .doc-payment-block dt { font-size: 9pt; }
+  .doc-table { font-size: 11pt; }
+  .doc-table th,
+  .doc-table td { padding: 2.5mm 2mm; }
+  .doc-table thead th { font-size: 10pt; }
+  .doc-table .doc-grand-total th { font-size: 12pt; }
+  .doc-total-words { margin-top: 1.5mm; padding: 2.5mm; font-size: 10pt; line-height: 1.4; }
+  .doc-service-terms > div { padding-top: 3mm; padding-bottom: 3mm; }
+  .doc-service-terms p,
+  .doc-observations p { min-height: 5mm; font-size: 10pt; }
+  .doc-payment-block,
+  .doc-observations { padding-top: 3mm; padding-bottom: 3mm; }
+  .doc-payment-block dl { gap: 4mm; }
+  .doc-payment-block dl > div,
+  .doc-contact,
+  .doc-signature { gap: 1mm; font-size: 10pt; }
+  .doc-footer { gap: 8mm; padding-top: 4mm; }
+  .doc-signature strong { font-size: 12pt; }
+  .doc-signature span { font-size: 9pt; }
+  .signature-rule { height: 12mm; }
   .doc-table thead { display: table-header-group; }
   .doc-client,
   .doc-service-terms,
