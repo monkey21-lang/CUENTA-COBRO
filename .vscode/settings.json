@@ -1,0 +1,11 @@
+{
+  "remote.autoForwardPorts": true,
+  "remote.portsAttributes": {
+    "3002": {
+      "label": "Cuenta Clara",
+      "onAutoForward": "openBrowser",
+      "protocol": "http",
+      "visibility": "public"
+    }
+  }
+}
