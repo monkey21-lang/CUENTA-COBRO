@@ -44,7 +44,8 @@ export async function verifyCredentials(username: string, password: string): Pro
   if (!normalizedUsername || !password) return null;
   return withPrisma(async (prisma) => {
     const user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
-    if (!user || !await verifyPassword(password, user.passwordHash)) return null;
+    const passwordMatches = user ? await verifyPassword(password, user.passwordHash) : false;
+    if (!user || !passwordMatches) return null;
     return user.username;
   });
 }
