@@ -380,10 +380,10 @@ export default function InvoiceWorkspace() {
         </a>
         <div className="sidebar-caption">DOCUMENTOS</div>
         <nav className="side-nav" aria-label="Navegación principal">
-          <button className={view === "editor" ? "nav-item active" : "nav-item"} onClick={() => setView("editor")}>
+          <button className={view === "editor" ? "nav-item active" : "nav-item"} onClick={() => setView("editor")} aria-label="Nueva cuenta" title="Nueva cuenta">
             <FilePlus2 size={18} /> <span>Nueva cuenta</span>
           </button>
-          <button className={view !== "editor" ? "nav-item active" : "nav-item"} onClick={returnToHistory}>
+          <button className={view !== "editor" ? "nav-item active" : "nav-item"} onClick={returnToHistory} aria-label="Historial" title="Historial">
             <History size={18} /> <span>Historial</span>
             {savedInvoices.length > 0 && <span className="nav-count">{savedInvoices.length}</span>}
           </button>
@@ -403,7 +403,7 @@ export default function InvoiceWorkspace() {
                 <button className="button button-quiet" onClick={() => window.print()} title="Imprimir o guardar como PDF">
                   <Printer size={16} /><span>Imprimir</span>
                 </button>
-                <button className="button button-primary" onClick={() => void saveInvoice()} disabled={saving}>
+                <button className="button button-primary" onClick={() => void saveInvoice()} disabled={saving} aria-label={saving ? "Guardando cuenta" : "Guardar cuenta"} title={saving ? "Guardando cuenta" : "Guardar cuenta"}>
                   {saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}
                   <span>{saving ? "Guardando" : "Guardar cuenta"}</span>
                 </button>
