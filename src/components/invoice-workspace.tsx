@@ -734,7 +734,7 @@ export default function InvoiceWorkspace() {
 }
 
 function LoginScreen({ onLogin }: { onLogin: (username: string, password: string) => Promise<string | null> }) {
-  const [username, setUsername] = useState("Albert");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -756,10 +756,10 @@ function LoginScreen({ onLogin }: { onLogin: (username: string, password: string
         <h1 id="login-title">Iniciar sesión</h1>
         <p className="login-subtitle">Ingresa para administrar tus cuentas de cobro.</p>
         <form className="login-form" onSubmit={(event) => void submit(event)}>
-          <label className="field"><span>Usuario</span><select className="control" value={username} onChange={(event) => setUsername(event.target.value)}><option value="Albert">Albert</option><option value="Andres">Andres</option></select></label>
+          <label className="field"><span>Usuario</span><input className="control" type="text" autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Escribe tu usuario" required /></label>
           <label className="field"><span>Contraseña</span><input className="control" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
           {error && <div className="login-error" role="alert"><CircleAlert size={16} />{error}</div>}
-          <button className="button button-primary login-submit" type="submit" disabled={submitting || !password}>
+          <button className="button button-primary login-submit" type="submit" disabled={submitting || !username.trim() || !password}>
             {submitting ? <LoaderCircle className="spin" size={17} /> : <LockKeyhole size={17} />}
             <span>{submitting ? "Validando" : "Ingresar"}</span>
           </button>

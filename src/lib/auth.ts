@@ -1,12 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { withPrisma } from "@/lib/prisma";
+import { verifyPassword } from "@/lib/password";
 const SESSION_COOKIE = "cuenta-clara-session";
 const SESSION_LIFETIME_SECONDS = 60 * 60 * 12;
-const allowedUsers = {
-  Albert: "ALBERT_PASSWORD",
-  Andres: "ANDRES_PASSWORD",
-} as const;
 
-export type AccountUsername = keyof typeof allowedUsers;
+export type AccountUsername = string;
 
 function authEnvironment() {
   try {
@@ -42,21 +40,13 @@ async function sessionKey() {
 }
 
 export async function verifyCredentials(username: string, password: string): Promise<AccountUsername | null> {
-  if (!(username in allowedUsers)) return null;
-  const account = username as AccountUsername;
-  const expectedPassword = authEnvironment()[allowedUsers[account]];
-  if (!expectedPassword) return null;
-
-  const encoder = new TextEncoder();
-  const [expectedDigest, receivedDigest] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(expectedPassword)),
-    crypto.subtle.digest("SHA-256", encoder.encode(password)),
-  ]);
-  const expected = new Uint8Array(expectedDigest);
-  const received = new Uint8Array(receivedDigest);
-  let difference = 0;
-  for (let index = 0; index < expected.length; index += 1) difference |= expected[index] ^ received[index];
-  return difference === 0 ? account : null;
+  const normalizedUsername = username.trim();
+  if (!normalizedUsername || !password) return null;
+  return withPrisma(async (prisma) => {
+    const user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+    if (!user || !await verifyPassword(password, user.passwordHash)) return null;
+    return user.username;
+  });
 }
 
 export async function createSessionToken(username: AccountUsername) {
@@ -81,7 +71,7 @@ export async function verifySessionToken(token: string | null): Promise<AccountU
     );
     if (!valid) return null;
     const data = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as { username?: string; expiresAt?: number };
-    if (typeof data.username !== "string" || !(data.username in allowedUsers)) return null;
+    if (typeof data.username !== "string" || !data.username.trim()) return null;
     if (!data.expiresAt || data.expiresAt <= Math.floor(Date.now() / 1000)) return null;
     return data.username as AccountUsername;
   } catch {

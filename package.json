@@ -13,6 +13,12 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "db:migrate:local": "prisma db push",
+    "db:migrate:cloudflare:local": "wrangler d1 migrations apply cuenta-clara --local",
+    "db:migrate:cloudflare:remote": "wrangler d1 migrations apply cuenta-clara --remote",
+    "db:seed:users": "node scripts/seed-users.mjs local",
+    "db:seed:users:d1-local": "node scripts/seed-users.mjs d1-local",
+    "db:seed:users:remote": "node scripts/seed-users.mjs remote",
     "db:cloudflare:local": "wrangler d1 migrations apply cuenta-clara --local",
     "db:cloudflare:remote": "wrangler d1 migrations apply cuenta-clara --remote",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
