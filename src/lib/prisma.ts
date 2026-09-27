@@ -7,15 +7,24 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 export async function withPrisma<T>(operation: (client: PrismaClient) => Promise<T>) {
-  if (process.env.NODE_ENV === "production") {
-    const { env } = getCloudflareContext();
-    const bindings = env as unknown as { DB: ConstructorParameters<typeof PrismaD1>[0] };
-    const client = new PrismaClient({ adapter: new PrismaD1(bindings.DB) });
+  let cloudflareEnv: { DB?: ConstructorParameters<typeof PrismaD1>[0] } | undefined;
+  try {
+    cloudflareEnv = getCloudflareContext().env as unknown as typeof cloudflareEnv;
+  } catch {
+    // Standard Next.js server outside the Cloudflare runtime.
+  }
+
+  if (cloudflareEnv?.DB) {
+    const client = new PrismaClient({ adapter: new PrismaD1(cloudflareEnv.DB) });
     try {
       return await operation(client);
     } finally {
       await client.$disconnect();
     }
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Cloudflare D1 binding DB is unavailable.");
   }
 
   const client = globalForPrisma.prisma ?? new PrismaClient();
