@@ -33,12 +33,19 @@ type InvoiceItemDraft = {
 type InvoiceDraft = {
   headerTitle: string;
   brandName: string;
+  issuerTaxId: string;
+  issuerAddress: string;
   logoDataUrl: string;
   invoiceNumber: string;
   invoiceDate: string;
   customerName: string;
   customerNumber: string;
   customerAddress: string;
+  customerCity: string;
+  customerPhone: string;
+  servicePeriod: string;
+  paymentTerms: string;
+  observations: string;
   contactEmail: string;
   contactPhone: string;
   contactWebsite: string;
@@ -77,6 +84,8 @@ const BUSINESS_PREFERENCES_KEY = "cuenta-clara:business-preferences";
 const BUSINESS_PREFERENCE_FIELDS = [
   "headerTitle",
   "brandName",
+  "issuerTaxId",
+  "issuerAddress",
   "contactEmail",
   "contactPhone",
   "contactWebsite",
@@ -98,13 +107,20 @@ function createDraft(): InvoiceDraft {
   const date = localDateString();
   return {
     headerTitle: "Cuenta de cobro",
-    brandName: "Juan Asoya",
+    brandName: "L'M CONFECCIONES",
+    issuerTaxId: "",
+    issuerAddress: "",
     logoDataUrl: "",
     invoiceNumber: `CC-${date.replaceAll("-", "")}-001`,
     invoiceDate: date,
     customerName: "",
     customerNumber: "",
     customerAddress: "",
+    customerCity: "",
+    customerPhone: "",
+    servicePeriod: "",
+    paymentTerms: "",
+    observations: "",
     contactEmail: "hola@tumarca.com",
     contactPhone: "",
     contactWebsite: "www.tumarca.com",
@@ -128,11 +144,54 @@ function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+function amountInWords(cents: number) {
+  const amount = Math.round(cents / 100);
+  const small = ["cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
+  const tens = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+  const hundreds = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+  function groupWords(value: number): string {
+    if (value < 30) return small[value];
+    if (value < 100) return value % 10 ? `${tens[Math.floor(value / 10)]} y ${small[value % 10]}` : tens[value / 10];
+    if (value === 100) return "cien";
+    return value % 100 ? `${hundreds[Math.floor(value / 100)]} ${groupWords(value % 100)}` : hundreds[value / 100];
+  }
+
+  function groupBeforeScale(value: number) {
+    return groupWords(value).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
+  }
+
+  if (!Number.isSafeInteger(amount) || amount < 0) return "";
+  if (amount === 0) return "CERO PESOS M/CTE";
+  const names = ["", "mil", "millón", "mil millones", "billón", "mil billones"];
+  const groups: number[] = [];
+  for (let remaining = amount; remaining > 0; remaining = Math.floor(remaining / 1000)) groups.push(remaining % 1000);
+  const words = groups.map((group, index) => {
+    if (!group) return "";
+    if (index === 0) return groupWords(group).replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
+    if (index === 1) return group === 1 ? "mil" : `${groupBeforeScale(group)} mil`;
+    const scale = names[index] ?? "";
+    if (index % 2 === 0) return group === 1 ? `un ${scale}` : `${groupBeforeScale(group)} ${scale}${scale === "millón" || scale === "billón" ? "es" : ""}`;
+    return group === 1 ? scale : `${groupBeforeScale(group)} ${scale}`;
+  }).filter(Boolean).reverse().join(" ");
+  return `${words.toUpperCase()} PESOS M/CTE`;
+}
+
 function dateLabel(date: string) {
   if (!date) return "";
   return new Intl.DateTimeFormat("es-CO", {
     day: "2-digit",
     month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00.000Z`));
+}
+
+function dateDocumentLabel(date: string) {
+  if (!date) return "XX/XX/XXXX";
+  return new Intl.DateTimeFormat("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00.000Z`));
@@ -177,6 +236,78 @@ function TextField({
   );
 }
 
+function InvoiceDocument({ invoice }: { invoice: InvoiceRecord }) {
+  const issuerContact = [invoice.contactPhone, invoice.contactEmail, invoice.contactWebsite].filter(Boolean).join(" | ");
+
+  return (
+    <article className="document-paper">
+      {invoice.logoDataUrl && <div className="document-watermark" aria-hidden="true" style={{ backgroundImage: `url("${invoice.logoDataUrl}")` }} />}
+      <header className="doc-banner">
+        <div className="doc-brand">
+          <div className="doc-logo">
+            {invoice.logoDataUrl ? <Image src={invoice.logoDataUrl} alt="Logo" width={72} height={72} unoptimized /> : <Shapes size={48} strokeWidth={1.3} />}
+          </div>
+          <div className="doc-issuer">
+            <strong>{invoice.brandName || "Tu marca"}</strong>
+            <span>NIT / C.C.: {invoice.issuerTaxId || "—"}</span>
+            {invoice.issuerAddress && <span>{invoice.issuerAddress}</span>}
+            {issuerContact && <span>{issuerContact}</span>}
+          </div>
+        </div>
+        <div className="doc-title-wrap">
+          <h2>{invoice.headerTitle || "CUENTA DE COBRO"}</h2>
+          <div className="doc-meta"><span>N°</span><strong>{invoice.invoiceNumber || "XXXX"}</strong></div>
+          <div className="doc-meta"><span>Fecha:</span><strong>{dateDocumentLabel(invoice.invoiceDate)}</strong></div>
+        </div>
+      </header>
+
+      <div className="doc-content">
+        <section className="doc-client">
+          <h3>INFORMACIÓN DEL CLIENTE</h3>
+          <dl className="doc-client-grid">
+            <div><dt>Nombre</dt><dd>{invoice.customerName || "—"}</dd></div>
+            <div><dt>C.C. / NIT</dt><dd>{invoice.customerNumber || "—"}</dd></div>
+            <div><dt>Dirección</dt><dd>{invoice.customerAddress || "—"}</dd></div>
+            <div><dt>Ciudad</dt><dd>{invoice.customerCity || "—"}</dd></div>
+            <div><dt>Teléfono</dt><dd>{invoice.customerPhone || "—"}</dd></div>
+          </dl>
+        </section>
+
+        <table className="doc-table">
+          <thead><tr><th>DESCRIPCIÓN</th><th>PRECIO</th><th>CANT.</th><th>TOTAL</th></tr></thead>
+          <tbody>{invoice.items.map((item) => <tr key={item.id}><td>{item.description}</td><td>{formatMoney(item.unitPriceCents)}</td><td>{item.quantity}</td><td>{formatMoney(item.unitPriceCents * item.quantity)}</td></tr>)}</tbody>
+          <tfoot>
+            <tr><td colSpan={3}>Subtotal</td><td>{formatMoney(invoice.subtotalCents)}</td></tr>
+            {invoice.discountPercent > 0 && <tr><td colSpan={3}>Descuento ({invoice.discountPercent}%)</td><td>-{formatMoney(invoice.discountCents)}</td></tr>}
+            <tr className="doc-grand-total"><th colSpan={3}>TOTAL</th><th>{formatMoney(invoice.totalCents)}</th></tr>
+          </tfoot>
+        </table>
+        <p className="doc-total-words"><strong>SON:</strong> {amountInWords(invoice.totalCents)}</p>
+
+        <section className="doc-service-terms">
+          <div><h3>PERÍODO / FECHA DEL SERVICIO</h3><p>{invoice.servicePeriod || "—"}</p></div>
+          <div><h3>FORMA Y PLAZO DE PAGO</h3><p>{invoice.paymentTerms || "—"}</p></div>
+        </section>
+
+        <section className="doc-payment-block">
+          <h3>INFORMACIÓN DE PAGO</h3>
+          <dl><div><dt>Banco</dt><dd>{invoice.bankName || "—"}</dd></div><div><dt>Titular</dt><dd>{invoice.accountName || "—"}</dd></div><div><dt>Número de cuenta</dt><dd>{invoice.accountNumber || "—"}</dd></div></dl>
+        </section>
+
+        <section className="doc-observations">
+          <h3>OBSERVACIONES</h3>
+          <p>{invoice.observations || "—"}</p>
+        </section>
+
+        <footer className="doc-footer">
+          <div className="doc-contact"><h3>CONTACTO</h3>{invoice.contactPhone && <span>{invoice.contactPhone}</span>}{invoice.contactEmail && <span>{invoice.contactEmail}</span>}{invoice.contactWebsite && <span>{invoice.contactWebsite}</span>}</div>
+          <div className="doc-signature"><h3>FIRMA</h3><div className="signature-rule" /><strong>{invoice.brandName || "Tu marca"}</strong><span>Prestador de servicios</span></div>
+        </footer>
+      </div>
+    </article>
+  );
+}
+
 export default function InvoiceWorkspace() {
   const [draft, setDraft] = useState<InvoiceDraft>(createDraft);
   const [lastLogoDataUrl, setLastLogoDataUrl] = useState("");
@@ -185,6 +316,8 @@ export default function InvoiceWorkspace() {
     return {
       headerTitle: initial.headerTitle,
       brandName: initial.brandName,
+      issuerTaxId: initial.issuerTaxId,
+      issuerAddress: initial.issuerAddress,
       logoDataUrl: initial.logoDataUrl,
       contactEmail: initial.contactEmail,
       contactPhone: initial.contactPhone,
@@ -547,8 +680,10 @@ export default function InvoiceWorkspace() {
                 <div className="field-grid">
                   <TextField fieldId="headerTitle" invalid={invalidFields.includes("headerTitle")} label="Título del documento" value={draft.headerTitle} onChange={(value) => updateField("headerTitle", value)} placeholder="Factura" />
                   <TextField fieldId="brandName" invalid={invalidFields.includes("brandName")} label="Nombre de tu marca" value={draft.brandName} onChange={(value) => updateField("brandName", value)} placeholder="Nombre comercial" />
+                  <TextField label="NIT / C.C. del prestador" value={draft.issuerTaxId} onChange={(value) => updateField("issuerTaxId", value)} placeholder="Identificación" />
                   <TextField fieldId="invoiceNumber" invalid={invalidFields.includes("invoiceNumber")} label="Número" value={draft.invoiceNumber} onChange={(value) => updateField("invoiceNumber", value)} />
                   <TextField fieldId="invoiceDate" invalid={invalidFields.includes("invoiceDate")} label="Fecha" type="date" value={draft.invoiceDate} onChange={(value) => updateField("invoiceDate", value)} />
+                  <TextField label="Dirección del prestador" value={draft.issuerAddress} onChange={(value) => updateField("issuerAddress", value)} placeholder="Dirección comercial" />
                 </div>
                 <label className="upload-control">
                   {draft.logoDataUrl ? <Image src={draft.logoDataUrl} alt="Logo actual" width={36} height={36} unoptimized /> : <span className="upload-icon"><ImagePlus size={17} /></span>}
@@ -562,8 +697,10 @@ export default function InvoiceWorkspace() {
                 <div className="section-label">CLIENTE</div>
                 <div className="field-grid">
                   <TextField fieldId="customerName" invalid={invalidFields.includes("customerName")} label="Nombre completo" value={draft.customerName} onChange={(value) => updateField("customerName", value)} placeholder="Nombre del cliente" />
-                  <TextField fieldId="customerNumber" invalid={invalidFields.includes("customerNumber")} label="Teléfono / identificación" value={draft.customerNumber} onChange={(value) => updateField("customerNumber", value)} placeholder="Número de contacto" />
+                  <TextField fieldId="customerNumber" invalid={invalidFields.includes("customerNumber")} label="C.C. / NIT" value={draft.customerNumber} onChange={(value) => updateField("customerNumber", value)} placeholder="Identificación del cliente" />
+                  <TextField label="Teléfono" value={draft.customerPhone} onChange={(value) => updateField("customerPhone", value)} placeholder="Teléfono del cliente" />
                   <label className={`field field-wide${invalidFields.includes("customerAddress") ? " field-invalid" : ""}`}><span>Dirección</span><input data-field-id="customerAddress" aria-invalid={invalidFields.includes("customerAddress")} className={invalidFields.includes("customerAddress") ? "control control-invalid" : "control"} value={draft.customerAddress} onChange={(event) => updateField("customerAddress", event.target.value)} placeholder="Dirección del cliente" /></label>
+                  <TextField label="Ciudad" value={draft.customerCity} onChange={(value) => updateField("customerCity", value)} placeholder="Ciudad" />
                 </div>
               </div>
 
@@ -581,6 +718,11 @@ export default function InvoiceWorkspace() {
                   ))}
                 </div>
                 <div className="discount-row"><span>Descuento</span><label className="discount-input"><input className="control" type="number" min="0" max="100" value={draft.discountPercent} onChange={(event) => updateField("discountPercent", event.target.value)} aria-label="Porcentaje de descuento" /><span>%</span></label></div>
+                <div className="field-grid document-conditions">
+                  <TextField label="Período / fecha del servicio" value={draft.servicePeriod} onChange={(value) => updateField("servicePeriod", value)} placeholder="Ej. 1 al 30 de septiembre" />
+                  <TextField label="Forma y plazo de pago" value={draft.paymentTerms} onChange={(value) => updateField("paymentTerms", value)} placeholder="Ej. Transferencia, pago a 15 días" />
+                  <label className="field field-wide"><span>Observaciones</span><textarea className="control control-textarea" value={draft.observations} onChange={(event) => updateField("observations", event.target.value)} placeholder="Notas adicionales" rows={3} /></label>
+                </div>
               </div>
 
               <div className="form-section last-section">
@@ -598,55 +740,19 @@ export default function InvoiceWorkspace() {
 
             <section className="preview-panel" aria-label="Vista previa del documento">
               <div className="preview-toolbar"><div><span className="preview-indicator" /> VISTA PREVIA</div><button className="icon-button" onClick={() => window.print()} title="Imprimir o guardar como PDF" aria-label="Imprimir cuenta"><Printer size={17} /></button></div>
-              <article className="document-paper">
-                {draft.logoDataUrl && <div className="document-watermark" aria-hidden="true" style={{ backgroundImage: `url("${draft.logoDataUrl}")` }} />}
-                <header className="doc-banner">
-                  <div className="doc-brand">
-                    <div className="doc-logo">
-                      {draft.logoDataUrl ? <Image src={draft.logoDataUrl} alt="Logo" width={116} height={116} unoptimized /> : <Shapes size={88} strokeWidth={1.2} />}
-                    </div>
-                    <strong>{draft.brandName || "Tu marca"}</strong>
-                  </div>
-                  <div className="doc-title-wrap">
-                    <h2>{draft.headerTitle || "Cuenta de cobro"}</h2>
-                    <div className="doc-meta"><span>Factura N°</span><strong>{draft.invoiceNumber || "—"}</strong></div>
-                    <div className="doc-meta"><span>Fecha</span><strong>{dateLabel(draft.invoiceDate) || "—"}</strong></div>
-                  </div>
-                </header>
-
-                <div className="doc-content">
-                  <section className="doc-client">
-                    <h3>INFORMACIÓN DEL CLIENTE</h3>
-                    <dl>
-                      <div><dt>NOMBRE:</dt><dd>{draft.customerName || "Nombre del cliente"}</dd></div>
-                      <div><dt>NÚMERO:</dt><dd>{draft.customerNumber || "Teléfono o identificación"}</dd></div>
-                      <div><dt>DIRECCIÓN:</dt><dd>{draft.customerAddress || "Dirección del cliente"}</dd></div>
-                    </dl>
-                  </section>
-
-                  <table className="doc-table">
-                    <thead><tr><th>DESCRIPCIÓN</th><th>PRECIO</th><th>CANTIDAD</th><th>TOTAL</th></tr></thead>
-                    <tbody>
-                      {draft.items.map((item) => {
-                        const unitCents = Math.round(Math.max(0, Number(item.unitPrice) || 0) * 100);
-                        const quantity = Math.max(1, Number.parseInt(item.quantity, 10) || 1);
-                        return <tr key={item.id}><td>{item.description || "Servicio"}</td><td>{formatMoney(unitCents)}</td><td>{quantity}</td><td>{formatMoney(unitCents * quantity)}</td></tr>;
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr><td colSpan={3}>Subtotal</td><td>{formatMoney(subtotalCents)}</td></tr>
-                      {discountPercent > 0 && <tr><td colSpan={3}>Descuento ({discountPercent}%)</td><td>-{formatMoney(discountCents)}</td></tr>}
-                      <tr className="doc-grand-total"><th colSpan={3}>TOTAL</th><th>{formatMoney(totalCents)}</th></tr>
-                    </tfoot>
-                  </table>
-
-                  <footer className="doc-footer">
-                    <div className="doc-contact"><h3>CONTACTO</h3>{draft.contactEmail && <span>{draft.contactEmail}</span>}{draft.contactPhone && <span>{draft.contactPhone}</span>}{draft.contactWebsite && <span>{draft.contactWebsite}</span>}</div>
-                    <div className="doc-payment"><h3>INFORMACIÓN DE PAGO</h3><dl><div><dt>Banco</dt><dd>{draft.bankName || "—"}</dd></div><div><dt>Nombre de la cuenta</dt><dd>{draft.accountName || "—"}</dd></div><div><dt>Número de la cuenta</dt><dd>{draft.accountNumber || "—"}</dd></div></dl></div>
-                    <div className="doc-signature"><h3>FIRMA</h3><div className="signature-rule" /><strong>{draft.brandName || "Tu marca"}</strong><span>Prestador de servicios</span></div>
-                  </footer>
-                </div>
-              </article>
+              <InvoiceDocument invoice={{
+                ...draft,
+                discountPercent,
+                subtotalCents,
+                discountCents,
+                totalCents,
+                items: draft.items.map((item) => ({
+                  id: item.id,
+                  description: item.description || "Servicio",
+                  unitPriceCents: Math.round(Math.max(0, Number(item.unitPrice) || 0) * 100),
+                  quantity: Math.max(1, Number.parseInt(item.quantity, 10) || 1),
+                })),
+              }} />
               <div className="preview-caption"><FileText size={14} /> Documento A4 · Listo para imprimir</div>
             </section>
           </div>
@@ -683,46 +789,7 @@ export default function InvoiceWorkspace() {
         ) : selectedInvoice ? (
           <section className="preview-panel readonly-invoice" aria-label="Cuenta guardada en modo solo lectura">
             <div className="preview-toolbar"><div><span className="preview-indicator" /> DOCUMENTO GUARDADO · SOLO LECTURA</div></div>
-            <article className="document-paper">
-              {selectedInvoice.logoDataUrl && <div className="document-watermark" aria-hidden="true" style={{ backgroundImage: `url("${selectedInvoice.logoDataUrl}")` }} />}
-              <header className="doc-banner">
-                <div className="doc-brand">
-                  <div className="doc-logo">
-                    {selectedInvoice.logoDataUrl ? <Image src={selectedInvoice.logoDataUrl} alt="Logo" width={116} height={116} unoptimized /> : <Shapes size={88} strokeWidth={1.2} />}
-                  </div>
-                  <strong>{selectedInvoice.brandName || "Tu marca"}</strong>
-                </div>
-                <div className="doc-title-wrap">
-                  <h2>{selectedInvoice.headerTitle || "Cuenta de cobro"}</h2>
-                  <div className="doc-meta"><span>Factura N°</span><strong>{selectedInvoice.invoiceNumber}</strong></div>
-                  <div className="doc-meta"><span>Fecha</span><strong>{dateLabel(selectedInvoice.invoiceDate)}</strong></div>
-                </div>
-              </header>
-              <div className="doc-content">
-                <section className="doc-client">
-                  <h3>INFORMACIÓN DEL CLIENTE</h3>
-                  <dl>
-                    <div><dt>NOMBRE:</dt><dd>{selectedInvoice.customerName || "—"}</dd></div>
-                    <div><dt>NÚMERO:</dt><dd>{selectedInvoice.customerNumber || "—"}</dd></div>
-                    <div><dt>DIRECCIÓN:</dt><dd>{selectedInvoice.customerAddress || "—"}</dd></div>
-                  </dl>
-                </section>
-                <table className="doc-table">
-                  <thead><tr><th>DESCRIPCIÓN</th><th>PRECIO</th><th>CANTIDAD</th><th>TOTAL</th></tr></thead>
-                  <tbody>{selectedInvoice.items.map((item) => <tr key={item.id}><td>{item.description}</td><td>{formatMoney(item.unitPriceCents)}</td><td>{item.quantity}</td><td>{formatMoney(item.unitPriceCents * item.quantity)}</td></tr>)}</tbody>
-                  <tfoot>
-                    <tr><td colSpan={3}>Subtotal</td><td>{formatMoney(selectedInvoice.subtotalCents)}</td></tr>
-                    {selectedInvoice.discountPercent > 0 && <tr><td colSpan={3}>Descuento ({selectedInvoice.discountPercent}%)</td><td>-{formatMoney(selectedInvoice.discountCents)}</td></tr>}
-                    <tr className="doc-grand-total"><th colSpan={3}>TOTAL</th><th>{formatMoney(selectedInvoice.totalCents)}</th></tr>
-                  </tfoot>
-                </table>
-                <footer className="doc-footer">
-                  <div className="doc-contact"><h3>CONTACTO</h3>{selectedInvoice.contactEmail && <span>{selectedInvoice.contactEmail}</span>}{selectedInvoice.contactPhone && <span>{selectedInvoice.contactPhone}</span>}{selectedInvoice.contactWebsite && <span>{selectedInvoice.contactWebsite}</span>}</div>
-                  <div className="doc-payment"><h3>INFORMACIÓN DE PAGO</h3><dl><div><dt>Banco</dt><dd>{selectedInvoice.bankName || "—"}</dd></div><div><dt>Nombre de la cuenta</dt><dd>{selectedInvoice.accountName || "—"}</dd></div><div><dt>Número de la cuenta</dt><dd>{selectedInvoice.accountNumber || "—"}</dd></div></dl></div>
-                  <div className="doc-signature"><h3>FIRMA</h3><div className="signature-rule" /><strong>{selectedInvoice.brandName || "Tu marca"}</strong><span>Prestador de servicios</span></div>
-                </footer>
-              </div>
-            </article>
+            <InvoiceDocument invoice={selectedInvoice} />
             <div className="preview-caption"><FileText size={14} /> Cuenta guardada · No editable</div>
           </section>
         ) : (

@@ -11,12 +11,19 @@ model Invoice {
   id             String        @id @default(cuid())
   headerTitle    String
   brandName      String
+  issuerTaxId     String        @default("")
+  issuerAddress  String        @default("")
   logoDataUrl    String?
   invoiceNumber  String
   invoiceDate    DateTime
   customerName   String
   customerNumber String
   customerAddress String
+  customerCity   String        @default("")
+  customerPhone  String        @default("")
+  servicePeriod  String        @default("")
+  paymentTerms   String        @default("")
+  observations   String        @default("")
   contactEmail   String
   contactPhone   String
   contactWebsite String
