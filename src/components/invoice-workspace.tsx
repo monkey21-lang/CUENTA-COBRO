@@ -331,7 +331,7 @@ export default function InvoiceWorkspace() {
           })),
         }),
       });
-      const result = await response.json();
+      const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "No se pudo guardar la cuenta.");
       setStatusType("success");
       setStatus("Cuenta guardada correctamente.");

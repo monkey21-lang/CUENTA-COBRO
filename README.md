@@ -20,7 +20,7 @@ npx prisma db push
 
 4. Inicia el servidor con `npm run dev` y abre `http://localhost:3002`.
 
-La base local se crea en `prisma/dev.db`. No se necesita una instancia externa.
+La base local de desarrollo se crea en `prisma/dev.db`. No se necesita una instancia externa.
 
 ## Uso
 
@@ -36,3 +36,45 @@ La base local se crea en `prisma/dev.db`. No se necesita una instancia externa.
 - `npm run lint`: análisis estático.
 - `npm run build`: compilación de producción.
 - `npx prisma studio`: explorador visual de la base de datos.
+
+## Desplegar en Cloudflare Workers
+
+La app usa SQLite local durante `npm run dev` y Cloudflare D1 persistente al ejecutarse en Workers. El build usa OpenNext para Cloudflare y conserva Next.js 16.
+
+1. Inicia sesión en Cloudflare desde la terminal:
+
+```bash
+npx wrangler login
+```
+
+2. Crea la base D1:
+
+```bash
+npx wrangler d1 create cuenta-clara
+```
+
+3. Copia el `database_id` que devuelve Wrangler en `wrangler.jsonc`, sustituyendo el UUID provisional `11111111-1111-4111-8111-111111111111`.
+4. Aplica el esquema a D1:
+
+```bash
+npm run db:cloudflare:remote
+```
+
+5. Compila y previsualiza el Worker localmente con D1 local:
+
+```bash
+npm run db:cloudflare:local
+npm run preview:cloudflare
+```
+
+6. Despliega en `workers.dev`:
+
+```bash
+npm run deploy:cloudflare
+```
+
+El workflow manual de GitHub Actions está en `.github/workflows/deploy-cloudflare.yml`. Configura los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID` en GitHub y ejecútalo desde **Actions → Deploy Cuenta Clara to Cloudflare → Run workflow**. El UUID real de D1 debe estar configurado en `wrangler.jsonc` antes de ejecutarlo. También puedes desplegar desde Linux con `npm run deploy:cloudflare`.
+
+OpenNext advierte que el build en Windows puede fallar al crear enlaces simbólicos. Para desplegar desde este equipo, usa WSL con una distro Linux instalada o ejecuta el workflow de GitHub Actions, que compila en Linux.
+
+La app no incluye autenticación todavía. No despliegues información financiera real en un endpoint público hasta añadir control de acceso.

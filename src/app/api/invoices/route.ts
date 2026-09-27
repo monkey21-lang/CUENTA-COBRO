@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { withPrisma } from "@/lib/prisma";
 import { jsonResponse } from "@/lib/json-response";
 
 export const runtime = "nodejs";
@@ -53,32 +53,34 @@ export async function GET(request: Request) {
     invoiceDate.lt = dayAfterTo;
   }
 
-  try {
-    const invoices = await prisma.invoice.findMany({
-      where: Object.keys(invoiceDate).length ? { invoiceDate } : undefined,
-      orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
-      take: 200,
-      select: {
-        id: true,
-        invoiceNumber: true,
-        invoiceDate: true,
-        customerName: true,
-        totalCents: true,
-        _count: { select: { items: true } },
-      },
-    });
+  return withPrisma(async (prisma) => {
+    try {
+      const invoices = await prisma.invoice.findMany({
+        where: Object.keys(invoiceDate).length ? { invoiceDate } : undefined,
+        orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+        take: 200,
+        select: {
+          id: true,
+          invoiceNumber: true,
+          invoiceDate: true,
+          customerName: true,
+          totalCents: true,
+          _count: { select: { items: true } },
+        },
+      });
 
-    return jsonResponse(invoices.map((invoice) => ({
-      id: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      invoiceDate: invoice.invoiceDate.toISOString().slice(0, 10),
-      customerName: invoice.customerName,
-      totalCents: invoice.totalCents,
-      itemCount: invoice._count.items,
-    })));
-  } catch {
-    return jsonResponse({ error: "No fue posible consultar la base de datos." }, { status: 500 });
-  }
+      return jsonResponse(invoices.map((invoice) => ({
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate.toISOString().slice(0, 10),
+        customerName: invoice.customerName,
+        totalCents: invoice.totalCents,
+        itemCount: invoice._count.items,
+      })));
+    } catch {
+      return jsonResponse({ error: "No fue posible consultar la base de datos." }, { status: 500 });
+    }
+  });
 }
 
 export async function POST(request: Request) {
@@ -105,34 +107,43 @@ export async function POST(request: Request) {
   }
   const discountCents = Math.round(subtotalCents * data.discountPercent / 100);
 
-  try {
-    const invoice = await prisma.invoice.create({
-      data: {
-        headerTitle: data.headerTitle,
-        brandName: data.brandName,
-        logoDataUrl: data.logoDataUrl || null,
-        invoiceNumber: data.invoiceNumber,
-        invoiceDate: new Date(`${data.invoiceDate}T12:00:00.000Z`),
-        customerName: data.customerName,
-        customerNumber: data.customerNumber,
-        customerAddress: data.customerAddress,
-        contactEmail: data.contactEmail,
-        contactPhone: data.contactPhone,
-        contactWebsite: data.contactWebsite,
-        bankName: data.bankName,
-        accountName: data.accountName,
-        accountNumber: data.accountNumber,
-        discountPercent: data.discountPercent,
-        subtotalCents,
-        discountCents,
-        totalCents: subtotalCents - discountCents,
-        items: { create: data.items.map((item, position) => ({ ...item, position })) },
-      },
-      include: { items: true },
-    });
+  return withPrisma(async (prisma) => {
+    try {
+      const invoice = await prisma.invoice.create({
+        data: {
+          headerTitle: data.headerTitle,
+          brandName: data.brandName,
+          logoDataUrl: data.logoDataUrl || null,
+          invoiceNumber: data.invoiceNumber,
+          invoiceDate: new Date(`${data.invoiceDate}T12:00:00.000Z`),
+          customerName: data.customerName,
+          customerNumber: data.customerNumber,
+          customerAddress: data.customerAddress,
+          contactEmail: data.contactEmail,
+          contactPhone: data.contactPhone,
+          contactWebsite: data.contactWebsite,
+          bankName: data.bankName,
+          accountName: data.accountName,
+          accountNumber: data.accountNumber,
+          discountPercent: data.discountPercent,
+          subtotalCents,
+          discountCents,
+          totalCents: subtotalCents - discountCents,
+        },
+      });
 
-    return jsonResponse({ id: invoice.id, invoiceNumber: invoice.invoiceNumber }, { status: 201 });
-  } catch {
-    return jsonResponse({ error: "No fue posible guardar la cuenta en la base de datos." }, { status: 500 });
-  }
+      try {
+        await prisma.invoiceItem.createMany({
+          data: data.items.map((item, position) => ({ ...item, position, invoiceId: invoice.id })),
+        });
+      } catch (error) {
+        await prisma.invoice.delete({ where: { id: invoice.id } }).catch(() => undefined);
+        throw error;
+      }
+
+      return jsonResponse({ id: invoice.id, invoiceNumber: invoice.invoiceNumber }, { status: 201 });
+    } catch {
+      return jsonResponse({ error: "No fue posible guardar la cuenta en la base de datos." }, { status: 500 });
+    }
+  });
 }
