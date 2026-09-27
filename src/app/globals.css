@@ -49,6 +49,92 @@ input:focus-visible {
   min-height: 100vh;
 }
 
+.login-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background-color: #f1f3ed;
+  background-image: linear-gradient(#dce1d522 1px, transparent 1px), linear-gradient(90deg, #dce1d522 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.login-panel {
+  width: min(100%, 420px);
+  border: 1px solid #dfe3dc;
+  border-top: 3px solid #a5c951;
+  padding: 31px;
+  background: #fff;
+  box-shadow: 0 14px 44px #18201812;
+}
+
+.login-mark {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  margin-bottom: 24px;
+  place-items: center;
+  background: #1b1e1c;
+  color: #d3ef78;
+}
+
+.login-panel .eyebrow {
+  margin-bottom: 8px;
+}
+
+.login-panel h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 680;
+}
+
+.login-subtitle {
+  margin: 7px 0 23px;
+  color: #747c76;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.login-form {
+  display: grid;
+  gap: 15px;
+}
+
+.login-form .control {
+  height: 43px;
+  font-size: 14px;
+}
+
+.login-submit {
+  min-height: 44px;
+  margin-top: 3px;
+  font-size: 13px;
+}
+
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #e9b5ad;
+  padding: 10px 11px;
+  background: #fff3f1;
+  color: #9b3027;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.login-error svg {
+  flex: 0 0 auto;
+}
+
+.login-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #505852;
+  font-size: 13px;
+}
+
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
@@ -223,6 +309,11 @@ input:focus-visible {
 
 .topbar-actions {
   gap: 9px;
+}
+
+.logout-button {
+  border-color: #dfe3dd;
+  background: transparent;
 }
 
 .button {
@@ -1240,6 +1331,8 @@ input:focus-visible {
   .topbar-actions { flex: 0 0 auto; gap: 4px; }
   .topbar-actions .button { width: 40px; min-width: 40px; min-height: 40px; padding: 0; }
   .topbar-actions .button span { display: none; }
+  .logout-button { width: 40px; height: 40px; }
+  .login-panel { padding: 24px 20px; }
   .sidebar { padding-right: 9px; padding-left: 9px; }
   .brand-lockup { gap: 6px; font-size: 13px; }
   .brand-mark { width: 29px; height: 29px; }

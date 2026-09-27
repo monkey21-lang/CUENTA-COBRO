@@ -22,6 +22,8 @@ npx prisma db push
 
 La base local de desarrollo se crea en `prisma/dev.db`. No se necesita una instancia externa.
 
+El inicio de sesión local usa `AUTH_SECRET`, `ALBERT_PASSWORD` y `ANDRES_PASSWORD` en `.dev.vars`. Ese archivo está excluido de Git. En Cloudflare configura esas mismas variables como secretos del Worker desde **Settings → Variables and Secrets**; usa el usuario `Albert` o `Andres` y su contraseña correspondiente.
+
 ## Uso
 
 - Edita el título, marca, logo, número y fecha del documento.
@@ -77,4 +79,4 @@ El workflow manual de GitHub Actions está en `.github/workflows/deploy-cloudfla
 
 OpenNext advierte que el build en Windows puede fallar al crear enlaces simbólicos. Para desplegar desde este equipo, usa WSL con una distro Linux instalada o ejecuta el workflow de GitHub Actions, que compila en Linux.
 
-La app no incluye autenticación todavía. No despliegues información financiera real en un endpoint público hasta añadir control de acceso.
+La app requiere inicio de sesión y protege la API de facturas con una cookie firmada HttpOnly. La sesión vence después de 12 horas. Las preferencias de marca, encabezado y contacto/pago se recuerdan en el navegador; no guardes datos bancarios en un equipo compartido.

@@ -1,9 +1,11 @@
 import { withPrisma } from "@/lib/prisma";
 import { jsonResponse } from "@/lib/json-response";
+import { authenticatedUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, context: RouteContext<"/api/invoices/[id]">) {
+export async function GET(request: Request, context: RouteContext<"/api/invoices/[id]">) {
+  if (!await authenticatedUser(request)) return jsonResponse({ error: "Debes iniciar sesión." }, { status: 401 });
   const { id } = await context.params;
   return withPrisma(async (prisma) => {
     try {

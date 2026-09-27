@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withPrisma } from "@/lib/prisma";
 import { jsonResponse } from "@/lib/json-response";
+import { authenticatedUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,7 @@ function validDateOnly(value: string) {
 }
 
 export async function GET(request: Request) {
+  if (!await authenticatedUser(request)) return jsonResponse({ error: "Debes iniciar sesión." }, { status: 401 });
   const params = new URL(request.url).searchParams;
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
@@ -84,6 +86,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!await authenticatedUser(request)) return jsonResponse({ error: "Debes iniciar sesión." }, { status: 401 });
   let body: unknown;
   try {
     body = await request.json();

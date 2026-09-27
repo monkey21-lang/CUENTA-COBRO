@@ -6,6 +6,8 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
+  LogOut,
+  LockKeyhole,
   FilePlus2,
   FileText,
   History,
@@ -19,7 +21,7 @@ import {
   Trash2,
   CircleAlert,
 } from "lucide-react";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
 type InvoiceItemDraft = {
   id: string;
@@ -71,6 +73,19 @@ type InvoiceRecord = Omit<InvoiceDraft, "items" | "discountPercent"> & {
 
 type PageView = "editor" | "history" | "detail";
 const LAST_LOGO_STORAGE_KEY = "cuenta-clara:last-logo";
+const BUSINESS_PREFERENCES_KEY = "cuenta-clara:business-preferences";
+const BUSINESS_PREFERENCE_FIELDS = [
+  "headerTitle",
+  "brandName",
+  "contactEmail",
+  "contactPhone",
+  "contactWebsite",
+  "bankName",
+  "accountName",
+  "accountNumber",
+] as const;
+
+type BusinessPreferences = Pick<InvoiceDraft, typeof BUSINESS_PREFERENCE_FIELDS[number] | "logoDataUrl">;
 
 function localDateString(date = new Date()) {
   const year = date.getFullYear();
@@ -165,6 +180,22 @@ function TextField({
 export default function InvoiceWorkspace() {
   const [draft, setDraft] = useState<InvoiceDraft>(createDraft);
   const [lastLogoDataUrl, setLastLogoDataUrl] = useState("");
+  const [businessPreferences, setBusinessPreferences] = useState<BusinessPreferences>(() => {
+    const initial = createDraft();
+    return {
+      headerTitle: initial.headerTitle,
+      brandName: initial.brandName,
+      logoDataUrl: initial.logoDataUrl,
+      contactEmail: initial.contactEmail,
+      contactPhone: initial.contactPhone,
+      contactWebsite: initial.contactWebsite,
+      bankName: initial.bankName,
+      accountName: initial.accountName,
+      accountNumber: initial.accountNumber,
+    };
+  });
+  const [authenticatedUser, setAuthenticatedUser] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<PageView>("editor");
   const [savedInvoices, setSavedInvoices] = useState<SavedInvoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<(InvoiceRecord & { id: string }) | null>(null);
@@ -191,37 +222,99 @@ export default function InvoiceWorkspace() {
     if (remaining.length === 0) setStatus("");
     else if (statusType === "error") setStatus("Aún hay campos obligatorios por completar.");
   }
-  useEffect(() => {
-    const restoreLogoTimeout = window.setTimeout(() => {
-      try {
-        const savedLogo = window.localStorage.getItem(LAST_LOGO_STORAGE_KEY);
-        if (savedLogo) {
-          setLastLogoDataUrl(savedLogo);
-          setDraft((current) => current.logoDataUrl ? current : { ...current, logoDataUrl: savedLogo });
-        }
-      } catch {
-        setStatusType("error");
-        setStatus("El navegador no permite recordar el logo entre cuentas.");
-      }
-    }, 0);
 
-    async function loadRecentInvoices() {
-      setLoadingHistory(true);
-      try {
-        const response = await fetch("/api/invoices");
-        if (response.ok) setSavedInvoices(await response.json());
-      } catch {
-        setStatus("No fue posible conectar con la base de datos.");
-      } finally {
-        setLoadingHistory(false);
-      }
+  function restoreBusinessPreferences() {
+    try {
+      const stored = window.localStorage.getItem(BUSINESS_PREFERENCES_KEY);
+      const saved = stored ? JSON.parse(stored) as Partial<BusinessPreferences> : {};
+      const logo = typeof saved.logoDataUrl === "string"
+        ? saved.logoDataUrl
+        : window.localStorage.getItem(LAST_LOGO_STORAGE_KEY) ?? "";
+      const restored: Partial<BusinessPreferences> = {};
+      BUSINESS_PREFERENCE_FIELDS.forEach((field) => {
+        if (typeof saved[field] === "string") restored[field] = saved[field];
+      });
+      restored.logoDataUrl = logo;
+      setBusinessPreferences((current) => ({ ...current, ...restored }));
+      if (logo) setLastLogoDataUrl(logo);
+      setDraft((current) => ({ ...current, ...restored }));
+    } catch {
+      setStatusType("error");
+      setStatus("No se pudieron recuperar los datos del negocio guardados en este navegador.");
     }
-    void loadRecentInvoices();
-    return () => window.clearTimeout(restoreLogoTimeout);
+  }
+
+  async function loadRecentInvoices() {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch("/api/invoices");
+      if (response.ok) setSavedInvoices(await response.json());
+      else if (response.status !== 401) throw new Error("No fue posible consultar las cuentas guardadas.");
+    } catch {
+      setStatusType("error");
+      setStatus("No fue posible conectar con la base de datos.");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  async function signIn(username: string, password: string) {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ username, password }),
+      });
+      const result = await response.json() as { username?: string; error?: string };
+      if (!response.ok) return result.error ?? "No se pudo iniciar sesión.";
+      setAuthenticatedUser(result.username ?? username);
+      restoreBusinessPreferences();
+      await loadRecentInvoices();
+      return null;
+    } catch {
+      return "No se pudo conectar con el servicio de inicio de sesión.";
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setAuthenticatedUser("");
+    setSavedInvoices([]);
+    setSelectedInvoice(null);
+    setDraft({ ...createDraft(), ...businessPreferences, customerName: "", customerNumber: "", customerAddress: "" });
+    setView("editor");
+    setStatus("");
+  }
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/session")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const session = await response.json() as { authenticated: boolean; username?: string };
+        if (!session.authenticated || !session.username) return;
+        if (!active) return;
+        setAuthenticatedUser(session.username);
+        restoreBusinessPreferences();
+        await loadRecentInvoices();
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setAuthLoading(false); });
+    return () => { active = false; };
   }, []);
 
   function updateField(field: keyof Omit<InvoiceDraft, "items">, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
+    if (BUSINESS_PREFERENCE_FIELDS.includes(field as typeof BUSINESS_PREFERENCE_FIELDS[number])) {
+      const next = { ...businessPreferences, [field]: value };
+      setBusinessPreferences(next);
+      try {
+        window.localStorage.setItem(BUSINESS_PREFERENCES_KEY, JSON.stringify(next));
+      } catch {
+        setStatusType("error");
+        setStatus("No se pudieron guardar las preferencias del negocio en este navegador.");
+      }
+    }
     clearInvalidField(field);
   }
 
@@ -262,6 +355,9 @@ export default function InvoiceWorkspace() {
         let persisted = true;
         try {
           window.localStorage.setItem(LAST_LOGO_STORAGE_KEY, reader.result);
+          const preferences = { ...businessPreferences, logoDataUrl: reader.result };
+          window.localStorage.setItem(BUSINESS_PREFERENCES_KEY, JSON.stringify(preferences));
+          setBusinessPreferences(preferences);
         } catch {
           persisted = false;
         }
@@ -359,7 +455,7 @@ export default function InvoiceWorkspace() {
   }
 
   function startNewInvoice() {
-    setDraft({ ...createDraft(), logoDataUrl: lastLogoDataUrl });
+    setDraft({ ...createDraft(), ...businessPreferences, logoDataUrl: lastLogoDataUrl || businessPreferences.logoDataUrl });
     setSelectedInvoice(null);
     setStatus("");
     setView("editor");
@@ -370,6 +466,12 @@ export default function InvoiceWorkspace() {
     setStatus("");
     setView("history");
   }
+
+  if (authLoading) {
+    return <main className="login-screen"><div className="login-loading"><LoaderCircle className="spin" size={21} />Validando sesión...</div></main>;
+  }
+
+  if (!authenticatedUser) return <LoginScreen onLogin={signIn} />;
 
   return (
     <div className="app-frame">
@@ -416,6 +518,9 @@ export default function InvoiceWorkspace() {
                 <button className="button button-primary" onClick={() => window.print()}><Printer size={16} /><span>Imprimir</span></button>
               </>
             )}
+            <button className="icon-button logout-button" onClick={() => void signOut()} aria-label={`Cerrar sesión de ${authenticatedUser}`} title={`Cerrar sesión de ${authenticatedUser}`}>
+              <LogOut size={17} />
+            </button>
           </div>
         </header>
 
@@ -625,5 +730,41 @@ export default function InvoiceWorkspace() {
         )}
       </main>
     </div>
+  );
+}
+
+function LoginScreen({ onLogin }: { onLogin: (username: string, password: string) => Promise<string | null> }) {
+  const [username, setUsername] = useState("Albert");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    const result = await onLogin(username, password);
+    if (result) setError(result);
+    setSubmitting(false);
+  }
+
+  return (
+    <main className="login-screen">
+      <section className="login-panel" aria-labelledby="login-title">
+        <div className="login-mark"><Shapes size={25} strokeWidth={1.7} /></div>
+        <p className="eyebrow"><span className="eyebrow-rule" /> CUENTA CLARA</p>
+        <h1 id="login-title">Iniciar sesión</h1>
+        <p className="login-subtitle">Ingresa para administrar tus cuentas de cobro.</p>
+        <form className="login-form" onSubmit={(event) => void submit(event)}>
+          <label className="field"><span>Usuario</span><select className="control" value={username} onChange={(event) => setUsername(event.target.value)}><option value="Albert">Albert</option><option value="Andres">Andres</option></select></label>
+          <label className="field"><span>Contraseña</span><input className="control" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          {error && <div className="login-error" role="alert"><CircleAlert size={16} />{error}</div>}
+          <button className="button button-primary login-submit" type="submit" disabled={submitting || !password}>
+            {submitting ? <LoaderCircle className="spin" size={17} /> : <LockKeyhole size={17} />}
+            <span>{submitting ? "Validando" : "Ingresar"}</span>
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }
