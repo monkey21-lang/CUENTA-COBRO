@@ -41,6 +41,15 @@ jobs:
           ALBERT_PASSWORD: ${{ secrets.ALBERT_PASSWORD }}
           ANDRES_PASSWORD: ${{ secrets.ANDRES_PASSWORD }}
 
+      - name: Configure auth secret
+        run: |
+          test -n "$AUTH_SECRET"
+          printf '%s' "$AUTH_SECRET" | npx wrangler secret put AUTH_SECRET --name cuenta-cobro
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+
       - name: Build and deploy Worker
         run: npm run deploy:cloudflare
         env:

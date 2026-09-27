@@ -21,7 +21,7 @@ npm run db:seed:users
 
 4. Inicia el servidor con `npm run dev` y abre `http://localhost:3002`.
 
-La base local de desarrollo se crea en `prisma/dev.db`. No se necesita una instancia externa.
+`npm run dev` usa SQLite local en `prisma/dev.db`, no D1. Para probar D1 localmente, ejecuta `npm run db:migrate:cloudflare:local`, `npm run db:seed:users:d1-local` y `npm run preview:cloudflare`.
 
 El seed local lee `ALBERT_PASSWORD` y `ANDRES_PASSWORD` desde `.dev.vars` y los guarda en la tabla `User` como hashes PBKDF2. Ese archivo está excluido de Git. En Cloudflare el Worker solo necesita `AUTH_SECRET` como secreto en **Settings → Variables and Secrets**; GitHub Actions usa los secretos `ALBERT_PASSWORD` y `ANDRES_PASSWORD` al sembrar D1.
 
@@ -78,7 +78,7 @@ npm run preview:cloudflare
 npm run deploy:cloudflare
 ```
 
-El workflow manual de GitHub Actions está en `.github/workflows/deploy-cloudflare.yml`. Configura los secretos `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALBERT_PASSWORD` y `ANDRES_PASSWORD` en GitHub y ejecútalo desde **Actions → Deploy Cuenta Clara to Cloudflare → Run workflow**. En Cloudflare añade también `AUTH_SECRET` como secreto del Worker desde **Settings → Variables and Secrets**; usa una clave aleatoria de al menos 32 caracteres. El UUID real de D1 debe estar configurado en `wrangler.jsonc` antes de ejecutarlo. También puedes desplegar desde Linux con `npm run deploy:cloudflare`.
+El workflow manual de GitHub Actions está en `.github/workflows/deploy-cloudflare.yml`. Configura los secretos `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALBERT_PASSWORD`, `ANDRES_PASSWORD` y `AUTH_SECRET` en GitHub y ejecútalo desde **Actions → Deploy Cuenta Clara to Cloudflare → Run workflow**. `AUTH_SECRET` debe tener al menos 32 caracteres; el workflow lo instala en el Worker antes de desplegar. Para configurarlo manualmente, usa **Settings → Variables and Secrets** en Cloudflare. El UUID real de D1 debe estar configurado en `wrangler.jsonc` antes de ejecutarlo. También puedes desplegar desde Linux con `npm run deploy:cloudflare`.
 
 La tabla `User` almacena hashes PBKDF2, nunca contraseñas en texto plano. Para cambios futuros del esquema, crea una nueva migración SQL con `npx prisma migrate diff --from-local-d1 --to-schema-datamodel prisma/schema.prisma --script --output prisma/migrations/000N_descripcion.sql` y aplícala con los comandos `db:migrate:cloudflare:*`.
 
