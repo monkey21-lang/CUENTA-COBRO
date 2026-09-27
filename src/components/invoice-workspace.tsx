@@ -187,6 +187,14 @@ function dateLabel(date: string) {
   }).format(new Date(`${date}T12:00:00.000Z`));
 }
 
+async function requestNextInvoiceNumber(date: string) {
+  const query = new URLSearchParams({ nextNumberFor: date });
+  const response = await fetch(`/api/invoices?${query.toString()}`);
+  const result = await response.json() as { invoiceNumber?: string; error?: string };
+  if (!response.ok || !result.invoiceNumber) throw new Error(result.error ?? "No se pudo obtener el siguiente consecutivo.");
+  return result.invoiceNumber;
+}
+
 function dateDocumentLabel(date: string) {
   if (!date) return "XX/XX/XXXX";
   return new Intl.DateTimeFormat("es-CO", {
@@ -205,6 +213,7 @@ function TextField({
   type = "text",
   min,
   max,
+  readOnly = false,
   fieldId,
   invalid = false,
 }: {
@@ -215,6 +224,7 @@ function TextField({
   type?: string;
   min?: number;
   max?: number;
+  readOnly?: boolean;
   fieldId?: string;
   invalid?: boolean;
 }) {
@@ -231,6 +241,7 @@ function TextField({
         placeholder={placeholder}
         min={min}
         max={max}
+        readOnly={readOnly}
       />
     </label>
   );
@@ -391,6 +402,16 @@ export default function InvoiceWorkspace() {
     }
   }
 
+  async function refreshInvoiceNumber(date: string) {
+    try {
+      const invoiceNumber = await requestNextInvoiceNumber(date);
+      setDraft((current) => current.invoiceDate === date ? { ...current, invoiceNumber } : current);
+    } catch {
+      setStatusType("error");
+      setStatus("No se pudo consultar el siguiente consecutivo.");
+    }
+  }
+
   async function signIn(username: string, password: string) {
     try {
       const response = await fetch("/api/auth/login", {
@@ -403,6 +424,7 @@ export default function InvoiceWorkspace() {
       setAuthenticatedUser(result.username ?? username);
       restoreBusinessPreferences();
       await loadRecentInvoices();
+      await refreshInvoiceNumber(draft.invoiceDate);
       return null;
     } catch {
       return "No se pudo conectar con el servicio de inicio de sesión.";
@@ -430,6 +452,10 @@ export default function InvoiceWorkspace() {
         setAuthenticatedUser(session.username);
         restoreBusinessPreferences();
         await loadRecentInvoices();
+        const invoiceDate = localDateString();
+        const invoiceNumber = await requestNextInvoiceNumber(invoiceDate);
+        if (!active) return;
+        setDraft((current) => current.invoiceDate === invoiceDate ? { ...current, invoiceNumber } : current);
       })
       .catch(() => undefined)
       .finally(() => { if (active) setAuthLoading(false); });
@@ -449,6 +475,7 @@ export default function InvoiceWorkspace() {
       }
     }
     clearInvalidField(field);
+    if (field === "invoiceDate" && value) void refreshInvoiceNumber(value);
   }
 
   function updateItem(id: string, field: keyof Omit<InvoiceItemDraft, "id">, value: string) {
@@ -560,10 +587,11 @@ export default function InvoiceWorkspace() {
           })),
         }),
       });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { error?: string; invoiceNumber?: string };
       if (!response.ok) throw new Error(result.error ?? "No se pudo guardar la cuenta.");
+      if (result.invoiceNumber) setDraft((current) => ({ ...current, invoiceNumber: result.invoiceNumber! }));
       setStatusType("success");
-      setStatus("Cuenta guardada correctamente.");
+      setStatus(result.invoiceNumber ? `Cuenta ${result.invoiceNumber} guardada correctamente.` : "Cuenta guardada correctamente.");
       await refreshHistory();
     } catch (error) {
       setStatusType("error");
@@ -587,11 +615,13 @@ export default function InvoiceWorkspace() {
     }
   }
 
-  function startNewInvoice() {
-    setDraft({ ...createDraft(), ...businessPreferences, logoDataUrl: lastLogoDataUrl || businessPreferences.logoDataUrl });
+  async function startNewInvoice() {
+    const nextDraft = { ...createDraft(), ...businessPreferences, logoDataUrl: lastLogoDataUrl || businessPreferences.logoDataUrl };
+    setDraft(nextDraft);
     setSelectedInvoice(null);
     setStatus("");
     setView("editor");
+    await refreshInvoiceNumber(nextDraft.invoiceDate);
   }
 
   function returnToHistory() {
@@ -681,7 +711,7 @@ export default function InvoiceWorkspace() {
                   <TextField fieldId="headerTitle" invalid={invalidFields.includes("headerTitle")} label="Título del documento" value={draft.headerTitle} onChange={(value) => updateField("headerTitle", value)} placeholder="Factura" />
                   <TextField fieldId="brandName" invalid={invalidFields.includes("brandName")} label="Nombre de tu marca" value={draft.brandName} onChange={(value) => updateField("brandName", value)} placeholder="Nombre comercial" />
                   <TextField label="NIT / C.C. del prestador" value={draft.issuerTaxId} onChange={(value) => updateField("issuerTaxId", value)} placeholder="Identificación" />
-                  <TextField fieldId="invoiceNumber" invalid={invalidFields.includes("invoiceNumber")} label="Número" value={draft.invoiceNumber} onChange={(value) => updateField("invoiceNumber", value)} />
+                  <TextField fieldId="invoiceNumber" invalid={invalidFields.includes("invoiceNumber")} label="Número consecutivo" value={draft.invoiceNumber} onChange={() => undefined} readOnly />
                   <TextField fieldId="invoiceDate" invalid={invalidFields.includes("invoiceDate")} label="Fecha" type="date" value={draft.invoiceDate} onChange={(value) => updateField("invoiceDate", value)} />
                   <TextField label="Dirección del prestador" value={draft.issuerAddress} onChange={(value) => updateField("issuerAddress", value)} placeholder="Dirección comercial" />
                 </div>

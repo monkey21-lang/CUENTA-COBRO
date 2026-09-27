@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PrismaClient } from "@prisma/client";
 import { withPrisma } from "@/lib/prisma";
 import { jsonResponse } from "@/lib/json-response";
 import { authenticatedUser } from "@/lib/auth";
@@ -41,9 +42,28 @@ function validDateOnly(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+async function nextInvoiceNumber(prisma: PrismaClient, date: string) {
+  const datePrefix = `CC-${date.replaceAll("-", "")}-`;
+  const existing = await prisma.invoice.findMany({
+    where: { invoiceNumber: { startsWith: datePrefix } },
+    select: { invoiceNumber: true },
+  });
+  const nextSequence = existing.reduce((highest, invoice) => {
+    const sequenceText = invoice.invoiceNumber.slice(datePrefix.length);
+    const sequence = /^\d+$/.test(sequenceText) ? Number(sequenceText) : 0;
+    return Math.max(highest, sequence);
+  }, 0) + 1;
+  return `${datePrefix}${String(nextSequence).padStart(3, "0")}`;
+}
+
 export async function GET(request: Request) {
   if (!await authenticatedUser(request)) return jsonResponse({ error: "Debes iniciar sesión." }, { status: 401 });
   const params = new URL(request.url).searchParams;
+  const nextNumberFor = params.get("nextNumberFor");
+  if (nextNumberFor) {
+    if (!validDateOnly(nextNumberFor)) return jsonResponse({ error: "La fecha para el consecutivo no es válida." }, { status: 400 });
+    return withPrisma(async (prisma) => jsonResponse({ invoiceNumber: await nextInvoiceNumber(prisma, nextNumberFor) }));
+  }
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
 
@@ -119,6 +139,7 @@ export async function POST(request: Request) {
 
   return withPrisma(async (prisma) => {
     try {
+      const invoiceNumber = await nextInvoiceNumber(prisma, data.invoiceDate);
       const invoice = await prisma.invoice.create({
         data: {
           headerTitle: data.headerTitle,
@@ -126,7 +147,7 @@ export async function POST(request: Request) {
           issuerTaxId: data.issuerTaxId,
           issuerAddress: data.issuerAddress,
           logoDataUrl: data.logoDataUrl || null,
-          invoiceNumber: data.invoiceNumber,
+          invoiceNumber,
           invoiceDate: new Date(`${data.invoiceDate}T12:00:00.000Z`),
           customerName: data.customerName,
           customerNumber: data.customerNumber,
